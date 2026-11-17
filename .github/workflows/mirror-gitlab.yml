@@ -7,12 +7,14 @@ name: Mirror to GitLab
 # this workflow: force-push every branch and tag to the GitLab remote.
 #
 # One-time setup:
-#   1. Create the GitLab project (or let the first run create it if the token
-#      allows it — it does not; create it once by hand).
-#   2. GitLab -> Preferences -> Access Tokens: scope `write_repository`.
-#   3. GitHub -> Settings -> Secrets -> Actions: add GITLAB_TOKEN (the PAT) and
-#      GITLAB_REPO (e.g. `alajamli/eu-law-assistant`).
-# Until both secrets exist the job is skipped, not failed.
+#   1. Create the (empty) GitLab project with the same path as this repository.
+#   2. GitLab -> Edit profile -> Access tokens -> Legacy token, scope
+#      `write_repository`.
+#   3. GitHub -> Settings -> Secrets and variables -> Actions: add GITLAB_TOKEN.
+#
+# The GitLab path is derived from the GitHub one (`github.repository`), so there
+# is no second secret to keep in sync. Until GITLAB_TOKEN exists the job is
+# skipped, not failed.
 
 on:
   push:
@@ -25,19 +27,20 @@ jobs:
     if: github.repository == 'alajamli/eu-law-assistant'
     env:
       GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-      GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+      GITLAB_REPO: ${{ vars.GITLAB_REPO || github.repository }}
     steps:
       - name: Skip when not configured
-        if: env.GITLAB_TOKEN == '' || env.GITLAB_REPO == ''
-        run: echo "GITLAB_TOKEN / GITLAB_REPO not set — skipping mirror."
+        if: env.GITLAB_TOKEN == ''
+        run: echo "GITLAB_TOKEN is not set — skipping mirror."
 
       - uses: actions/checkout@v4
-        if: env.GITLAB_TOKEN != '' && env.GITLAB_REPO != ''
+        if: env.GITLAB_TOKEN != ''
         with:
           fetch-depth: 0
 
       - name: Push all branches and tags
-        if: env.GITLAB_TOKEN != '' && env.GITLAB_REPO != ''
+        if: env.GITLAB_TOKEN != ''
         run: |
           git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@gitlab.com/${GITLAB_REPO}.git"
           git push --prune gitlab "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+          echo "mirrored $(git rev-parse --short HEAD) to gitlab.com/${GITLAB_REPO}"
