@@ -1,0 +1,59 @@
+name: eu-law-assistant
+
+# Dev stack: Postgres + pgvector, then the API.
+#   cp .env.example .env
+#   docker compose up --build
+#   curl http://localhost:8000/health
+#
+# The React app is not in Compose yet on purpose (Week 5): run `npm run dev` in web/.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-eulaw}
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - eulaw_pgdata:/var/lib/postgresql/data
+    ports:
+      # 5433 on the host so a local Postgres on 5432 is never a conflict.
+      - "127.0.0.1:${DB_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-eulaw}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/api.Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-eulaw}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.groq.com/openai/v1}
+      LLM_MODEL: ${LLM_MODEL:-llama-3.3-70b-versatile}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      # The API image has no torch/bge-m3 (see docs/DECISIONS.md ADR-004).
+      # `hashing` keeps the demo runnable; switch to `local` here *and* when
+      # indexing, never one without the other.
+      EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-hashing}
+      RERANK_ENABLED: ${RERANK_ENABLED:-false}
+      RETRIEVE_TOP_K: ${RETRIEVE_TOP_K:-30}
+      RERANK_TOP_N: ${RERANK_TOP_N:-5}
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  eulaw_pgdata:

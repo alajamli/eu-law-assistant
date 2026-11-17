@@ -1,0 +1,43 @@
+name: Mirror to GitLab
+
+# GitHub is the source of truth; this keeps a GitLab copy in sync without any
+# manual push.
+#
+# GitLab's native *pull* mirroring is a paid feature, so the free equivalent is
+# this workflow: force-push every branch and tag to the GitLab remote.
+#
+# One-time setup:
+#   1. Create the GitLab project (or let the first run create it if the token
+#      allows it — it does not; create it once by hand).
+#   2. GitLab -> Preferences -> Access Tokens: scope `write_repository`.
+#   3. GitHub -> Settings -> Secrets -> Actions: add GITLAB_TOKEN (the PAT) and
+#      GITLAB_REPO (e.g. `alajamli/eu-law-assistant`).
+# Until both secrets exist the job is skipped, not failed.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    if: github.repository == 'alajamli/eu-law-assistant'
+    env:
+      GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+      GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+    steps:
+      - name: Skip when not configured
+        if: env.GITLAB_TOKEN == '' || env.GITLAB_REPO == ''
+        run: echo "GITLAB_TOKEN / GITLAB_REPO not set — skipping mirror."
+
+      - uses: actions/checkout@v4
+        if: env.GITLAB_TOKEN != '' && env.GITLAB_REPO != ''
+        with:
+          fetch-depth: 0
+
+      - name: Push all branches and tags
+        if: env.GITLAB_TOKEN != '' && env.GITLAB_REPO != ''
+        run: |
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@gitlab.com/${GITLAB_REPO}.git"
+          git push --prune gitlab "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
