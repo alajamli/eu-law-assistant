@@ -12,6 +12,10 @@ against what was actually retrieved, and the system refuses instead of guessing.
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+> Source of truth: GitHub. Pushed commits are mirrored to
+> [gitlab.com/alajamli/eu-law-assistant](https://gitlab.com/alajamli/eu-law-assistant)
+> automatically by a workflow, so both copies stay on the same commit.
+
 > **Status: Week 1 of 6.** Ingestion, schema, retrieval and the evaluation harness
 > exist; answer generation and the UI land in Weeks 4–5. The table below is filled
 > in from measured runs only — no placeholder numbers.
